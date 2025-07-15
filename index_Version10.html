@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horta-Viva IFG - O Jogo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; margin: 0; }
+        .game-canvas {
+            background-image: url('https://www.transparenttextures.com/patterns/light-grass.png');
+            background-color: #a3bf7b;
+            border-radius: 0.75rem;
+            display: block;
+            margin: 0 auto;
+            max-width: 100vw;
+            box-sizing: border-box;
+        }
+        .canvas-container {
+            width: 100%;
+            min-height: 230px;
+            max-width: 100vw;
+            box-sizing: border-box;
+            overflow-x: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal { transition: opacity 0.25s ease, transform 0.25s ease; }
+        .modal.hidden { opacity: 0; transform: scale(0.95); pointer-events: none; }
+        .progress-bar-fill { transition: width 0.5s ease-in-out; }
+        .icon-btn { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .icon-btn:hover { transform: scale(1.05); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .start-screen { background: linear-gradient(135deg, #86B857, #C5E1A5); }
+        .mission-toast { animation: slide-in-out 5s forwards; }
+        @keyframes slide-in-out {
+            0% { transform: translateY(100%); opacity: 0; }
+            15% { transform: translateY(0); opacity: 1; }
+            85% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(100%); opacity: 0; }
+        }
+        .quiz-option { transition: background-color 0.2s; }
+        @media (max-width: 900px) {
+            .flex-row { flex-direction: column !important; }
+            #game-container { gap: 0.5rem !important; padding: 0.5rem !important; }
+            .w-80 { width: 100% !important; }
+            .max-w-7xl { max-width: 100vw !important; }
+        }
+        @media (max-width: 600px) {
+            #start-screen h1 { font-size: 2.5rem !important; }
+            #start-screen p { font-size: 1rem !important; }
+            .text-3xl { font-size: 1.5rem !important; }
+            .rounded-xl, .rounded-2xl { border-radius: 0.7rem !important; }
+            .p-4, .p-6 { padding: 0.7rem !important; }
+            #game-container { padding: 0.2rem !important; }
+            .canvas-container { min-height: 160px !important; }
+        }
+        @media (max-width: 420px) {
+            .canvas-container { min-height: 110px !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <!-- Tela de Início -->
+    <div id="start-screen" class="start-screen absolute inset-0 z-50 flex flex-col items-center justify-center text-white p-8 text-center">
+        <h1 class="text-5xl md:text-7xl font-bold mb-4" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">Horta-Viva IFG</h1>
+        <p class="text-xl md:text-2xl mb-2 font-light">Um jogo sobre sustentabilidade e agroecologia.</p>
+        <p class="text-lg mb-8 max-w-2xl">Baseado no projeto de Witismar Martins C. Vieira - IFG Campus Itumbiara</p>
+        <button id="start-game-btn" class="bg-white text-green-700 font-bold py-4 px-12 rounded-full text-2xl shadow-lg hover:bg-green-100 transition-transform transform hover:scale-105">
+            Iniciar Jogo
+        </button>
+    </div>
+    <!-- Estrutura Principal do Jogo -->
+    <div id="game-container" class="hidden w-full h-full max-w-7xl mx-auto flex flex-col flex-row p-4 gap-4">
+        <!-- Painel Esquerdo -->
+        <div class="flex-grow flex flex-col gap-4">
+            <div class="bg-white p-4 rounded-xl shadow-md flex flex-wrap items-center justify-around gap-4">
+                <div class="text-center"><span class="text-lg font-semibold text-gray-700">Dia</span><p id="day-counter" class="text-3xl font-bold text-green-600">1</p></div>
+                <div class="text-center"><span class="text-lg font-semibold text-gray-700">Dinheiro</span><p id="money-counter" class="text-3xl font-bold text-yellow-500">$50</p></div>
+                <div class="text-center"><span class="text-lg font-semibold text-gray-700">Água</span><p id="water-counter" class="text-3xl font-bold text-blue-500">100L</p></div>
+                <div class="text-center flex flex-col items-center">
+                    <span class="text-lg font-semibold text-gray-700">Composto</span>
+                    <div class="flex items-center gap-2">
+                        <p id="compost-counter" class="text-3xl font-bold text-amber-700">5kg</p>
+                        <div class="flex flex-col items-center">
+                            <span class="text-sm text-gray-700">Alho</span>
+                            <span id="garlic-counter" class="text-xl font-bold text-purple-700">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="canvas-container">
+                <canvas id="game-canvas" class="game-canvas" style="width: 340px; height: 230px; max-width: 95vw;"></canvas>
+            </div>
+        </div>
+        <!-- Painel Direito -->
+        <div class="w-full md:w-80 flex-shrink-0 flex flex-col gap-4">
+            <div class="bg-white p-4 rounded-xl shadow-md flex-grow">
+                <h2 class="text-2xl font-bold text-gray-800 border-b pb-2 mb-3">Missão Atual</h2>
+                <div id="mission-display">
+                    <h3 id="mission-title" class="text-lg font-semibold text-green-700">Bem-vindo!</h3>
+                    <p id="mission-description" class="text-gray-600 mt-1">Sua primeira missão é plantar algo. Abra a loja e compre algumas sementes.</p>
+                    <div class="bg-gray-200 rounded-full h-4 mt-2 overflow-hidden"><div id="mission-progress" class="bg-green-500 h-full rounded-full progress-bar-fill" style="width: 0%;"></div></div>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-md">
+                 <h2 class="text-2xl font-bold text-gray-800 border-b pb-2 mb-4">Ações</h2>
+                 <div class="grid grid-cols-2 gap-4">
+                    <button id="shop-btn" class="icon-btn bg-blue-500 text-white p-3 rounded-lg flex flex-col items-center justify-center"><span>🛒</span><span class="font-semibold text-sm">Loja</span></button>
+                    <button id="water-btn" class="icon-btn bg-cyan-500 text-white p-3 rounded-lg flex flex-col items-center justify-center"><span>💧</span><span class="font-semibold text-sm">Irrigar</span></button>
+                    <button id="compost-btn" class="icon-btn bg-amber-600 text-white p-3 rounded-lg flex flex-col items-center justify-center"><span>🌱</span><span class="font-semibold text-sm">Composteira</span></button>
+                    <button id="pest-btn" class="icon-btn bg-red-500 text-white p-3 rounded-lg flex flex-col items-center justify-center"><span>🐛</span><span class="font-semibold text-sm">Defensivo</span></button>
+                    <button id="advice-btn" class="icon-btn bg-gradient-to-r from-purple-500 to-indigo-600 text-white p-3 rounded-lg flex flex-col items-center justify-center">
+                        <span>💡</span><span class="font-semibold text-sm">Consultor</span>
+                    </button>
+                    <button id="quiz-btn" class="icon-btn bg-gradient-to-r from-yellow-400 to-orange-500 text-white p-3 rounded-lg flex flex-col items-center justify-center">
+                        <span>❓</span><span class="font-semibold text-sm">Quiz</span>
+                    </button>
+                    <button id="water-source-btn" class="icon-btn bg-blue-700 text-white p-3 rounded-lg flex flex-col items-center justify-center col-span-2">
+                        <span>🚰</span><span class="font-semibold text-sm">Buscar Água</span>
+                    </button>
+                 </div>
+            </div>
+        </div>
+    </div>
+    <!-- Modal Genérico -->
+    <div id="modal" class="modal hidden fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative transform">
+            <button id="modal-close-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700">✖️</button>
+            <h2 id="modal-title" class="text-3xl font-bold text-gray-800 mb-4">Título do Modal</h2>
+            <div id="modal-content" class="text-gray-600 max-h-[60vh] overflow-y-auto"></div>
+        </div>
+    </div>
+    <div id="mission-toast" class="hidden fixed bottom-5 right-5 bg-green-600 text-white p-4 rounded-lg shadow-lg max-w-sm z-50">
+        <h4 class="font-bold">Nova Missão Concluída!</h4>
+        <p id="toast-text"></p>
+    </div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // VARIÁVEIS E ELEMENTOS PRINCIPAIS
+    const canvas = document.getElementById('game-canvas'), ctx = canvas.getContext('2d');
+    const gameContainer = document.getElementById('game-container'), startScreen = document.getElementById('start-screen');
+    const startGameBtn = document.getElementById('start-game-btn');
+    const dayCounter = document.getElementById('day-counter'), moneyCounter = document.getElementById('money-counter');
+    const waterCounter = document.getElementById('water-counter'), compostCounter = document.getElementById('compost-counter');
+    const garlicCounter = document.getElementById('garlic-counter');
+    const missionTitle = document.getElementById('mission-title'), missionDescription = document.getElementById('mission-description');
+    const missionProgress = document.getElementById('mission-progress'), missionToast = document.getElementById('mission-toast');
+    const toastText = document.getElementById('toast-text');
+    const shopBtn = document.getElementById('shop-btn'), waterBtn = document.getElementById('water-btn');
+    const compostBtn = document.getElementById('compost-btn'), pestBtn = document.getElementById('pest-btn');
+    const adviceBtn = document.getElementById('advice-btn'), quizBtn = document.getElementById('quiz-btn');
+    const waterSourceBtn = document.getElementById('water-source-btn');
+    const modal = document.getElementById('modal'), modalTitle = document.getElementById('modal-title');
+    const modalContent = document.getElementById('modal-content'), modalCloseBtn = document.getElementById('modal-close-btn');
+    let gameState = {
+        day: 1, money: 50, water: 100, compost: 5, garlic: 0, organicWaste: 10, dryMatter: 10,
+        pesticides: { garlic: 0 },
+        plots: [], currentMission: 0, gameSpeed: 5000, isPaused: true,
+        missionGoal: { plant: 0, harvest: 0, compost: 0, craft_pest: 0, money: 0 }
+    };
+    const MISSIONS = [
+        { title: "Primeiros Passos", description: "Compre e plante sua primeira cultura.", goal: 1, type: 'plant', reward: { money: 10 }, current: 0 },
+        { title: "Mestre da Colheita", description: "Colha 3 plantas maduras.", goal: 3, type: 'harvest', reward: { money: 20, water: 20 }, current: 0 },
+        { title: "Ciclo da Vida", description: "Crie seu primeiro lote de composto.", goal: 1, type: 'compost', reward: { money: 15, compost: 10 }, current: 0 },
+        { title: "Defesa Natural", description: "Produza um defensivo de alho.", goal: 1, type: 'craft_pest', reward: { money: 25 }, current: 0 },
+        { title: "Agricultor Próspero", description: "Acumule $200.", goal: 200, type: 'money', reward: { water: 50, compost: 20 }, current: 0 }
+    ];
+    const PLOT_COLS = 3, PLOT_ROWS = 2, PLOT_SIZE = 90, PLOT_GAP = 18;
+    const PLANT_DATA = {
+        alface: { name: 'Alface', growthTime: 2, waterPerDay: 5, price: 5, sellValue: 10, icon: '🥬' },
+        tomate: { name: 'Tomate', growthTime: 4, waterPerDay: 8, price: 15, sellValue: 35, icon: '🍅' },
+        cenoura: { name: 'Cenoura', growthTime: 3, waterPerDay: 6, price: 8, sellValue: 20, icon: '🥕' },
+        brocolis: { name: 'Brócolis', growthTime: 5, waterPerDay: 10, price: 20, sellValue: 50, icon: '🥦' },
+        alho: { name: 'Alho', growthTime: 2, waterPerDay: 2, price: 3, sellValue: 6, icon: '🧄' },
+    };
+    const RAIN_EVERY_N_DAYS = 5;
+    const RAIN_AMOUNT = 15;
+
+    function initGame() {
+        gameContainer.classList.remove('hidden'); gameContainer.classList.add('flex');
+        startScreen.classList.add('hidden');
+        resizeCanvas(); createPlots(); updateUI(); updateMissionDisplay();
+        gameState.isPaused = false;
+        MISSIONS.forEach(m => m.current = 0);
+        for (const key in gameState.missionGoal) gameState.missionGoal[key] = 0;
+        gameLoop();
+    }
+    function resizeCanvas() {
+        const container = canvas.parentElement;
+        let width = Math.min(container.clientWidth * 0.98, 340);
+        let height = Math.max(container.clientHeight, 230);
+        canvas.width = width;
+        canvas.height = height;
+        updatePlotPositions();
+        draw();
+    }
+    function updatePlotPositions() {
+        const totalWidth = PLOT_COLS * PLOT_SIZE + (PLOT_COLS - 1) * PLOT_GAP;
+        const totalHeight = PLOT_ROWS * PLOT_SIZE + (PLOT_ROWS - 1) * PLOT_GAP;
+        const startX = Math.max(0, (canvas.width - totalWidth) / 2);
+        const startY = Math.max(0, (canvas.height - totalHeight) / 2);
+        for (let i = 0; i < gameState.plots.length; i++) {
+            const r = Math.floor(i / PLOT_COLS);
+            const c = i % PLOT_COLS;
+            gameState.plots[i].x = startX + c * (PLOT_SIZE + PLOT_GAP);
+            gameState.plots[i].y = startY + r * (PLOT_SIZE + PLOT_GAP);
+        }
+    }
+    function createPlots() {
+        if (gameState.plots.length === PLOT_COLS * PLOT_ROWS) {
+            updatePlotPositions();
+            return;
+        }
+        gameState.plots = [];
+        const totalWidth = PLOT_COLS * PLOT_SIZE + (PLOT_COLS - 1) * PLOT_GAP;
+        const totalHeight = PLOT_ROWS * PLOT_SIZE + (PLOT_ROWS - 1) * PLOT_GAP;
+        const startX = Math.max(0, (canvas.width - totalWidth) / 2);
+        const startY = Math.max(0, (canvas.height - totalHeight) / 2);
+        for (let r = 0; r < PLOT_ROWS; r++) {
+            for (let c = 0; c < PLOT_COLS; c++) {
+                gameState.plots.push({ x: startX + c * (PLOT_SIZE + PLOT_GAP), y: startY + r * (PLOT_SIZE + PLOT_GAP), plant: null, isFertilized: false });
+            }
+        }
+    }
+    function draw() {
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawPlots();
+        requestAnimationFrame(draw);
+    }
+    function drawPlots() {
+        gameState.plots.forEach(plot => {
+            ctx.fillStyle = plot.isFertilized ? '#4B2E17' : '#D2B48C'; // Escurece solo se compostado
+            ctx.fillRect(plot.x, plot.y, PLOT_SIZE, PLOT_SIZE);
+            ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 4;
+            ctx.strokeRect(plot.x, plot.y, PLOT_SIZE, PLOT_SIZE);
+            if (plot.plant) {
+                const pData = PLANT_DATA[plot.plant.type];
+                const growth = Math.min(1, plot.plant.age / pData.growthTime);
+                ctx.font = `${15 + (PLOT_SIZE - 30) * growth}px sans-serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(pData.icon, plot.x + PLOT_SIZE / 2, plot.y + PLOT_SIZE / 2);
+                ctx.fillStyle = '#22c55e';
+                ctx.fillRect(plot.x, plot.y + PLOT_SIZE - 10, PLOT_SIZE * growth, 10);
+                if (plot.plant.hasPest) { ctx.font = `24px sans-serif`; ctx.fillText('🐛', plot.x + PLOT_SIZE - 15, plot.y + 15); }
+                if (!plot.plant.isWatered) { ctx.font = `24px sans-serif`; ctx.fillText('💧', plot.x + 15, plot.y + 15); }
+            }
+        });
+    }
+    function gameLoop() {
+        if (gameState.isPaused) return;
+        gameState.day++;
+        if (gameState.day % RAIN_EVERY_N_DAYS === 0) {
+            gameState.water += RAIN_AMOUNT;
+            showNotification(`Choveu hoje! Sua horta recebeu +${RAIN_AMOUNT}L de água.`, "success");
+        }
+        updatePlants(); generateResources(); triggerPestEvent();
+        updateUI(); checkMissionProgress();
+        setTimeout(gameLoop, gameState.gameSpeed);
+    }
+    function updatePlants() {
+        gameState.plots.forEach((plot, idx) => {
+            if (plot.plant) {
+                const waterNeeded = PLANT_DATA[plot.plant.type].waterPerDay;
+                plot.plant.isWatered = gameState.water >= waterNeeded;
+                if (plot.plant.isWatered) {
+                    gameState.water -= waterNeeded;
+                    if (plot.plant.age < PLANT_DATA[plot.plant.type].growthTime) {
+                        plot.plant.age += plot.isFertilized ? 1.5 : 1;
+                    }
+                }
+                if (plot.plant.type === "alho" && plot.plant.age >= PLANT_DATA.alho.growthTime) {
+                    gameState.garlic += 1;
+                    plot.plant = null; plot.isFertilized = false;
+                    showNotification("Você colheu alho! Ele foi para seu estoque de ingredientes para defensivos.", "success");
+                    gameState.missionGoal.harvest += 1; 
+                    checkMissionProgress();
+                }
+            }
+        });
+    }
+    function generateResources() { gameState.organicWaste += 2; gameState.dryMatter += 1; }
+    function triggerPestEvent() {
+        gameState.plots.forEach(plot => {
+            if (plot.plant && !plot.plant.hasPest && Math.random() < 0.15) {
+                plot.plant.hasPest = true;
+                showNotification("Uma praga apareceu em sua horta!", "error");
+            }
+        });
+    }
+    function handleCanvasClick(event) {
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left, y = event.clientY - rect.top;
+        gameState.plots.forEach((plot, index) => {
+            if (x > plot.x && x < plot.x + PLOT_SIZE && y > plot.y && y < plot.y + PLOT_SIZE) onPlotClick(index);
+        });
+    }
+    function onPlotClick(index) {
+        const plot = gameState.plots[index];
+        if (plot.plant) {
+            const pData = PLANT_DATA[plot.plant.type];
+            if (plot.plant.age >= pData.growthTime) {
+                if (plot.plant.type !== "alho") {
+                    gameState.money += pData.sellValue;
+                    const plantName = pData.name;
+                    modalTitle.textContent = "Colheita Realizada!";
+                    modalContent.innerHTML = `<p class="text-lg">Você colheu ${plantName} e vendeu por <span class="font-bold text-yellow-500">$${pData.sellValue}</span>!</p>`;
+                    modal.classList.remove('hidden');
+                    plot.plant = null; plot.isFertilized = false;
+                    gameState.missionGoal.harvest += 1;
+                    checkMissionProgress();
+                }
+            } else { showNotification(`Esta planta ainda não está pronta.`, "info"); }
+        } else { openShop(); }
+    }
+    window.plantSeed = (type) => {
+        const pData = PLANT_DATA[type];
+        if (type === "alho") {
+            if (gameState.money >= pData.price) {
+                const emptyPlotIdx = gameState.plots.findIndex(p => !p.plant);
+                if (emptyPlotIdx !== -1) {
+                    gameState.money -= pData.price;
+                    gameState.plots[emptyPlotIdx].plant = { type: type, age: 0, hasPest: false, isWatered: true };
+                    showNotification(`Você plantou alho! Ao colher, ele irá para seu estoque de ingredientes para defensivos.`, "success");
+                    gameState.missionGoal.plant += 1;
+                    checkMissionProgress();
+                    updateUI();
+                    closeModal();
+                } else { showNotification("Não há canteiros vazios!", "error"); }
+            } else { showNotification("Dinheiro insuficiente!", "error"); }
+            return;
+        }
+        if (gameState.money >= pData.price) {
+            const emptyPlotIdx = gameState.plots.findIndex(p => !p.plant);
+            if (emptyPlotIdx !== -1) {
+                gameState.money -= pData.price;
+                gameState.plots[emptyPlotIdx].plant = { type: type, age: 0, hasPest: false, isWatered: true };
+                showNotification(`Você plantou ${pData.name}!`, "success");
+                gameState.missionGoal.plant += 1;
+                checkMissionProgress();
+                closeModal(); updateUI();
+            } else { showNotification("Não há canteiros vazios!", "error"); }
+        } else { showNotification("Dinheiro insuficiente!", "error"); }
+    }
+    function waterPlants() { showNotification("A irrigação agora é automática a cada dia, se houver água disponível.", "info"); }
+    function seekWater() {
+        const gained = 30;
+        gameState.water += gained;
+        showNotification(`Você buscou água na fonte e ganhou +${gained}L!`, "success");
+        updateUI();
+    }
+    function openShop() {
+        modalTitle.textContent = "Loja de Sementes";
+        let content = `<p class="mb-4">Compre sementes para seu cultivo ou ingredientes para defensivos.</p><div class="space-y-3">`;
+        for (const key in PLANT_DATA) {
+            const p = PLANT_DATA[key];
+            if (key === "alho") {
+                content += `<div class="flex items-center justify-between p-3 bg-purple-100 rounded-lg">
+                    <div><span class="text-4xl">${p.icon}</span><span class="ml-4 text-lg font-semibold">${p.name} (Ingrediente)</span></div>
+                    <div><span class="text-purple-600 font-bold mr-2">$${p.price}</span><button class="bg-purple-500 text-white py-1 px-4 rounded" onclick="plantSeed('alho')">Plantar</button></div>
+                </div>`;
+            } else {
+                content += `<div class="flex items-center justify-between p-3 bg-gray-100 rounded-lg">
+                    <div><span class="text-4xl">${p.icon}</span><span class="ml-4 text-lg font-semibold">${p.name}</span></div>
+                    <div><span class="text-green-600 font-bold mr-2">$${p.price}</span><button class="bg-green-500 text-white py-1 px-4 rounded" onclick="plantSeed('${key}')">Plantar</button></div>
+                </div>`;
+            }
+        }
+        modalContent.innerHTML = content + `</div>`;
+        modal.classList.remove('hidden');
+    }
+    function openCompostModal() {
+        modalTitle.textContent = "Composteira";
+        let compostarBtnHtml = `<button id="make-compost-btn" class="bg-amber-600 text-white py-2 px-6 rounded font-bold w-full mt-4">Produzir Composto (+10kg)</button>`;
+        let aplicarBtnHtml = `<button id="apply-compost-btn" class="bg-green-800 text-white py-2 px-6 rounded font-bold w-full mt-2">Aplicar Composto no Solo</button>`;
+        modalContent.innerHTML = `<p class="mb-4">Transforme resíduos em adubo ou aplique o composto em um canteiro vazio para melhorar o solo.</p>
+            <div class="space-y-4">
+                <div class="p-3 bg-green-100 rounded-lg"><p>Resíduo Orgânico: <span class="font-bold">${gameState.organicWaste}kg</span></p></div>
+                <div class="p-3 bg-yellow-100 rounded-lg"><p>Matéria Seca: <span class="font-bold">${gameState.dryMatter}kg</span></p></div>
+                ${compostarBtnHtml}
+                ${aplicarBtnHtml}
+            </div>
+            <p class="text-sm text-gray-500 mt-3">Produção: 10 Orgânico, 5 Seca.<br>A aplicação gasta 5kg de composto e escurece o solo do canteiro escolhido.</p>`;
+        document.getElementById('make-compost-btn').onclick = () => {
+            if (gameState.organicWaste >= 10 && gameState.dryMatter >= 5) {
+                gameState.organicWaste -= 10; gameState.dryMatter -= 5; gameState.compost += 10;
+                showNotification("Você produziu 10kg de composto!", "success");
+                gameState.missionGoal.compost += 1;
+                checkMissionProgress();
+                closeModal(); updateUI();
+            } else { showNotification("Recursos insuficientes!", "error"); }
+        };
+        document.getElementById('apply-compost-btn').onclick = () => {
+            if (gameState.compost < 5) {
+                showNotification("Você precisa de pelo menos 5kg de composto!", "error");
+                return;
+            }
+            // Selecionar canteiro para aplicar composto
+            let html = "<p class='mb-2'>Selecione um canteiro vazio para aplicar o composto:</p><div class='grid grid-cols-3 gap-2'>";
+            gameState.plots.forEach((plot, idx) => {
+                let isEmpty = !plot.plant;
+                let btn = isEmpty ? `<button class="bg-green-700 text-white rounded-lg py-2 px-2 w-full" onclick="window.applyCompostOnPlot(${idx})">Canteiro ${idx+1}</button>` : `<button class="bg-gray-300 text-gray-500 rounded-lg py-2 px-2 w-full" disabled>Canteiro ${idx+1}</button>`;
+                html += `<div>${btn}</div>`;
+            });
+            html += "</div><button class='mt-3 w-full py-2 px-4 rounded bg-gray-300 text-gray-600 font-bold' onclick='window.closeModal()'>Cancelar</button>";
+            modalContent.innerHTML = html;
+        };
+        window.applyCompostOnPlot = function(idx) {
+            if (gameState.compost < 5) {
+                showNotification("Você precisa de pelo menos 5kg de composto!", "error");
+                return;
+            }
+            const plot = gameState.plots[idx];
+            if (!plot.plant) {
+                plot.isFertilized = true;
+                gameState.compost -= 5;
+                showNotification("Composto aplicado! O solo está mais fértil.", "success");
+                closeModal();
+                updateUI();
+            } else {
+                showNotification("Só é possível aplicar composto em canteiros vazios!", "error");
+            }
+        }
+        modal.classList.remove('hidden');
+    }
+    function openPestControlModal() {
+        modalTitle.textContent = "Defensivos Naturais";
+        modalContent.innerHTML = `<p class="mb-4">Produza defensivos naturais para proteger suas plantas.<br><span class="text-purple-600 font-bold">Você tem ${gameState.garlic} alho(s) disponíveis.</span></p>
+            <button id="make-garlic-pest-btn" class="bg-purple-500 text-white py-2 px-6 rounded font-bold w-full mt-2">Produzir defensivo de alho (gasta 1 alho)</button>
+            <div class="mt-4 text-gray-700">Defensivos disponíveis: ${gameState.pesticides.garlic || 0}</div>
+            <button id="apply-garlic-pest-btn" class="bg-red-400 text-white py-2 px-6 rounded font-bold w-full mt-2">Aplicar defensivo em plantas com praga</button>
+        `;
+        document.getElementById('make-garlic-pest-btn').onclick = () => {
+            if (gameState.garlic > 0) {
+                gameState.garlic--;
+                gameState.pesticides.garlic = (gameState.pesticides.garlic || 0) + 1;
+                showNotification("Você produziu defensivo de alho!", "success");
+                gameState.missionGoal.craft_pest += 1;
+                checkMissionProgress();
+                closeModal(); updateUI();
+            } else {
+                showNotification("Você não tem alho suficiente! Plante alho na loja e colha para produzir defensivo.", "error");
+            }
+        };
+        document.getElementById('apply-garlic-pest-btn').onclick = () => {
+            if (gameState.pesticides.garlic > 0) {
+                let pestPlots = gameState.plots.filter(p => p.plant && p.plant.hasPest);
+                if (pestPlots.length > 0) {
+                    pestPlots.forEach(p => { p.plant.hasPest = false; });
+                    gameState.pesticides.garlic--;
+                    showNotification("Defensivo aplicado! Pragas eliminadas.", "success");
+                    updateUI();
+                } else {
+                    showNotification("Não há plantas com pragas!", "info");
+                }
+            } else {
+                showNotification("Você precisa produzir defensivo primeiro!", "error");
+            }
+        };
+        modal.classList.remove('hidden');
+    }
+    function closeModal() { modal.classList.add('hidden'); }
+    function updateMissionDisplay() {
+        if (gameState.currentMission < MISSIONS.length) {
+            const mission = MISSIONS[gameState.currentMission];
+            missionTitle.textContent = mission.title;
+            missionDescription.textContent = mission.description;
+            let val = 0;
+            if (mission.type === "plant") val = gameState.missionGoal.plant;
+            if (mission.type === "harvest") val = gameState.missionGoal.harvest;
+            if (mission.type === "compost") val = gameState.missionGoal.compost;
+            if (mission.type === "craft_pest") val = gameState.missionGoal.craft_pest;
+            if (mission.type === "money") val = gameState.money;
+            const progress = Math.min(100, Math.round((val / mission.goal) * 100));
+            missionProgress.style.width = progress + '%';
+        } else {
+            missionTitle.textContent = "Parabéns!";
+            missionDescription.textContent = "Você completou todas as missões! Continue jogando para se tornar o melhor agricultor.";
+            missionProgress.style.width = '100%';
+        }
+    }
+    function showMissionToast(missionTitle) {
+        toastText.textContent = `Missão "${missionTitle}" concluída!`;
+        missionToast.classList.remove('hidden');
+        setTimeout(()=>missionToast.classList.add('hidden'), 4000);
+    }
+    function checkMissionProgress() {
+        if (gameState.currentMission >= MISSIONS.length) return;
+        const mission = MISSIONS[gameState.currentMission];
+        let val = 0;
+        if (mission.type === "plant") val = gameState.missionGoal.plant;
+        if (mission.type === "harvest") val = gameState.missionGoal.harvest;
+        if (mission.type === "compost") val = gameState.missionGoal.compost;
+        if (mission.type === "craft_pest") val = gameState.missionGoal.craft_pest;
+        if (mission.type === "money") val = gameState.money;
+        if (val >= mission.goal) {
+            showMissionToast(mission.title);
+            Object.entries(mission.reward).forEach(([key, value]) => {
+                gameState[key] += value;
+            });
+            gameState.currentMission++;
+            updateMissionDisplay();
+        } else {
+            updateMissionDisplay();
+        }
+    }
+    function updateUI() {
+        dayCounter.textContent = gameState.day; moneyCounter.textContent = `$${gameState.money}`;
+        waterCounter.textContent = `${gameState.water}L`; compostCounter.textContent = `${gameState.compost}kg`;
+        garlicCounter.textContent = gameState.garlic;
+    }
+    function showNotification(message, type = "info") {
+        if (type === "mission") {
+            toastText.textContent = message;
+            missionToast.classList.remove('hidden');
+            setTimeout(() => missionToast.classList.add('hidden'), 4900);
+            return;
+        }
+        let title;
+        switch(type) {
+            case "success": title = "Sucesso!"; break;
+            case "error": title = "Ops!"; break;
+            default: title = "Aviso";
+        }
+        modalTitle.textContent = title;
+        modalContent.innerHTML = `<p>${message}</p><button id="notification-ok" class="mt-4 w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-lg">OK</button>`;
+        modal.classList.remove('hidden');
+        document.getElementById('notification-ok').onclick = closeModal;
+        document.getElementById('notification-ok').focus();
+    }
+    const QUIZ_BANK = [
+        {
+            pergunta: "Qual a proporção ideal de material rico em Carbono (seco) para material rico em Nitrogênio (úmido) em uma composteira?",
+            opcoes: { A: "1 parte de seco para 10 de úmido", B: "2 partes de seco para 1 de úmido", C: "1 parte de seco para 1 de úmido", D: "10 partes de seco para 1 de úmido" },
+            resposta_correta: "B",
+            explicacao: "A proporção ideal é de 2 a 3 partes de material seco (carbono) para 1 de úmido (nitrogênio), garantindo aeração e evitando mau cheiro."
+        },
+        {
+            pergunta: "O que é 'consorciação de culturas'?",
+            opcoes: { A: "Plantar apenas um tipo de cultura", B: "Usar agrotóxicos em excesso", C: "Plantar espécies diferentes próximas para benefício mútuo", D: "Girar as culturas a cada estação" },
+            resposta_correta: "C",
+            explicacao: "Consorciação é plantar diferentes culturas juntas que se ajudam, como uma que repele pragas da outra ou melhora o solo."
+        },
+        {
+            pergunta: "Qual destes itens NÃO deve ser colocado em uma composteira doméstica?",
+            opcoes: { A: "Cascas de frutas", B: "Borra de café", C: "Restos de carne e laticínios", D: "Folhas secas" },
+            resposta_correta: "C",
+            explicacao: "Carnes e laticínios podem atrair animais indesejados e causar odores muito fortes durante a decomposição."
+        },
+        {
+            pergunta: "Qual a principal vantagem da irrigação por gotejamento?",
+            opcoes: { A: "É o método mais barato de instalar", B: "Molha as folhas, prevenindo fungos", C: "Simula a chuva perfeitamente", D: "Economiza muita água aplicando-a direto na raiz" },
+            resposta_correta: "D",
+            explicacao: "O gotejamento é altamente eficiente por levar a água diretamente à raiz da planta, minimizando a perda por evaporação."
+        },
+        {
+            pergunta: "Para que serve o chorume gerado na compostagem, depois de diluído?",
+            opcoes: { A: "Para lavar as ferramentas", B: "Como herbicida para matar todas as plantas", C: "Como um poderoso fertilizante líquido e repelente", D: "Para atrair minhocas para a superfície" },
+            resposta_correta: "C",
+            explicacao: "O chorume é um biofertilizante rico em nutrientes. Diluído em água (cerca de 1 para 10), ele nutre as plantas e ajuda a repelir algumas pragas."
+        }
+    ];
+    function startLocalQuiz() {
+        modalTitle.textContent = "🧠 Quiz do Sábio";
+        const quizData = QUIZ_BANK[Math.floor(Math.random() * QUIZ_BANK.length)];
+        renderQuiz(quizData);
+        modal.classList.remove('hidden');
+    }
+    function renderQuiz(quizData) {
+        let optionsHtml = '';
+        for (const key in quizData.opcoes) {
+            optionsHtml += `<button data-key="${key}" class="quiz-option w-full text-left p-3 mt-2 bg-gray-100 hover:bg-gray-200 rounded-lg">${key}: ${quizData.opcoes[key]}</button>`;
+        }
+        modalContent.innerHTML = `
+            <p class="font-semibold text-lg mb-4">${quizData.pergunta}</p>
+            <div id="quiz-options-container">${optionsHtml}</div>
+            <div id="quiz-feedback" class="mt-4 p-3 rounded-lg hidden"></div>
+        `;
+        document.querySelectorAll('.quiz-option').forEach(button => {
+            button.addEventListener('click', (e) => handleQuizAnswer(e, quizData));
+        });
+    }
+    function handleQuizAnswer(event, quizData) {
+        const selectedButton = event.currentTarget;
+        const selectedKey = selectedButton.dataset.key;
+        const feedbackEl = document.getElementById('quiz-feedback');
+        document.querySelectorAll('.quiz-option').forEach(btn => btn.disabled = true);
+        if (selectedKey === quizData.resposta_correta) {
+            selectedButton.classList.remove('bg-gray-100');
+            selectedButton.classList.add('bg-green-500', 'text-white');
+            feedbackEl.innerHTML = `<p class="font-bold">Correto! 🎉</p><p>${quizData.explicacao}</p><p class="mt-2">Você ganhou $20 e 5kg de composto!</p>`;
+            feedbackEl.classList.remove('hidden', 'bg-red-100', 'text-red-800');
+            feedbackEl.classList.add('bg-green-100', 'text-green-800');
+            gameState.money += 20;
+            gameState.compost += 5;
+            updateUI();
+        } else {
+            selectedButton.classList.remove('bg-gray-100');
+            selectedButton.classList.add('bg-red-500', 'text-white');
+            feedbackEl.innerHTML = `<p class="font-bold">Incorreto! 😕</p><p>${quizData.explicacao}</p>`;
+            feedbackEl.classList.remove('hidden', 'bg-green-100', 'text-green-800');
+            feedbackEl.classList.add('bg-red-100', 'text-red-800');
+            document.querySelector(`.quiz-option[data-key="${quizData.resposta_correta}"]`).classList.add('bg-green-500', 'text-white');
+        }
+    }
+    function getLocalAdvice() {
+        modalTitle.textContent = "💡 Conselheiro da Horta";
+        let advice = "Sua horta parece bem! Continue assim. Lembre-se de verificar suas missões para progredir. 🌱";
+        const hasPest = gameState.plots.some(p => p.plant && p.plant.hasPest);
+        if (hasPest) {
+            advice = "Cuidado! 🐛 Você tem pragas em sua horta. Vá para a bancada de defensivos e crie uma solução de alho para proteger suas plantas antes que elas sejam danificadas!";
+        } else if (gameState.water < 30) {
+            advice = "Seus níveis de água estão baixos! 💧 Clique em 'Buscar Água' ou torça para chover nos próximos dias.";
+        } else if (gameState.money < 20 && gameState.plots.every(p => !p.plant)) {
+            advice = "Você está com pouco dinheiro e sem plantas. 😥 Tente plantar alface, é uma cultura barata e de crescimento rápido para recuperar suas finanças!";
+        } else if (gameState.organicWaste > 20) {
+            advice = "Você acumulou bastante resíduo orgânico. Que tal ir para a composteira e produzir um adubo de alta qualidade? Suas plantas agradecerão! ♻️";
+        }
+        modalContent.innerHTML = `<p>${advice}</p>`;
+        modal.classList.remove('hidden');
+    }
+    window.addEventListener('resize', () => {
+        resizeCanvas();
+    });
+    canvas.addEventListener('click', handleCanvasClick);
+    startGameBtn.addEventListener('click', initGame);
+    modalCloseBtn.addEventListener('click', closeModal);
+    shopBtn.addEventListener('click', openShop);
+    waterBtn.addEventListener('click', waterPlants);
+    compostBtn.addEventListener('click', openCompostModal);
+    pestBtn.addEventListener('click', openPestControlModal);
+    adviceBtn.addEventListener('click', getLocalAdvice);
+    quizBtn.addEventListener('click', startLocalQuiz);
+    waterSourceBtn.addEventListener('click', seekWater);
+});
+</script>
+</body>
+</html>
